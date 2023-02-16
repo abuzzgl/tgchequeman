@@ -5,9 +5,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tgchequeman"
 version = "0.0.1"
-authors = [
-  { name="Conradk10", email="orion25rus@gmail.com" },
-]
 description = "This package is designed to automate the activation of multi-checks from multiple Telegram accounts. The package uses the Telethon library to interact with the Telegram API."
 readme = "README.md"
 requires-python = ">=3.8"
