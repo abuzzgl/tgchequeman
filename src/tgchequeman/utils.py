@@ -15,6 +15,8 @@ from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.tl.types import KeyboardButtonUrl, KeyboardButtonCallback
 
+from . import exceptions
+
 TEMP_DIR = "temp"  # Не менять
 SESSIONS_DIR = "sessions"  # Не менять
 MAX_ATTEMPTS = 10   # Максимальное количество попыток активации чека
@@ -44,7 +46,7 @@ if sys.platform == "darwin":
     font_size = 109
 else:
     font_size = 137
-font_path = pkg_resources.resource_filename('trcactivator', 'AppleColorEmoji.ttf')
+font_path = pkg_resources.resource_filename('tgchequeman', 'AppleColorEmoji.ttf')
 fnt = ImageFont.truetype(font_path, size=font_size, layout_engine=ImageFont.Layout.RAQM)
 
 
@@ -60,21 +62,21 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
             # Если чек полностью активирован или не существует
             if re.search(Pattern.activated_or_not_found, message.message):
                 logger.warning('Чек полностью активирован или не существует')
-                break
+                raise exceptions.ChequeFullyActivatedOrNotFound('Чек полностью активирован или не существует')
             # Если чек активирован
-            if re.search(Pattern.check_activated, message.message):
+            elif re.search(Pattern.check_activated, message.message):
                 logger.warning('Вы уже активировали этот чек')
-                break
+                raise exceptions.ChequeActivated('Вы уже активировали этот чек')
             # Если чек только для премиумов
-            if re.search(Pattern.need_premium, message.message):
+            elif re.search(Pattern.need_premium, message.message):
                 logger.warning('Этот чек только для пользователей Telegram Premium')
-                break
+                raise exceptions.ChequeForPremiumUsersOnly('Этот чек только для пользователей Telegram Premium')
             # Если чек создан вами
-            if re.search(Pattern.need_premium, message.message):
+            elif re.search(Pattern.own_cheque_error, message.message):
                 logger.warning('Вы не можете активировать чек, созданный вами')
-                break
+                raise exceptions.CannotActivateOwnCheque('Вы не можете активировать чек, созданный вами')
             # Если нужно подписаться на каналы
-            if re.search(Pattern.need_sub, message.message):
+            elif re.search(Pattern.need_sub, message.message):
                 i = 0
                 for _ in message.reply_markup.rows:
                     for button in message.reply_markup.rows[i].buttons:
@@ -91,13 +93,13 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
                                     except Exception as err:
                                         logger.error(err)
                                         logger.warning('Отправили заявку на вступление в канал')
-                                logger.info(f'Подписались на канал по ссылке: {url}')
+                                logger.info(f'Подписались по ссылке: {url}')
                                 await asyncio.sleep(1)
                             elif isinstance(button, KeyboardButtonCallback):
                                 await message.click(i)
                     i += 1
             # Если получили капчу
-            if message.photo:
+            elif message.photo:
                 await message.download_media(f"{TEMP_DIR}/original.jpg")
                 btns = []
                 i = 0
@@ -110,17 +112,21 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
                 message = await conv.get_response()
                 logger.info(f"Нажали кнопку '{_emoji}'")
             # Если получили запрос на ввод пароля
-            if re.search(Pattern.need_pass, message.message):
-                await conv.send_message(password)
+            elif re.search(Pattern.need_pass, message.message):
+                try:
+                    await conv.send_message(password)
+                except ValueError as err:
+                    raise exceptions.PasswordError(f'Ошибка ввода пароля, скорее всего Вы не указали пароль к чеку.\n'
+                                                   f' {err.__str__()}')
                 logger.info(f"Ввели пароль {password}")
             # Если получили вознаграждение
-            if re.search(Pattern.received, message.message):
+            elif re.search(Pattern.received, message.message):
                 logger.info(f'Получено сообщение: {message.message}')
-                break
+                return True
             attemp += 1
             if attemp >= 6:
-                logger.warning('Что-то пошло не так... Переходим к следующей сессии')
-                break
+                logger.warning('Что-то пошло не так...')
+                raise exceptions.UnknownError('Что-то пошло не так...')
 
 
 def parse_url(url: str) -> dict:
