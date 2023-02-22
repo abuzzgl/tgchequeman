@@ -26,11 +26,15 @@ class Pattern:
     """
     Этот класс содержит набор шаблонов регулярных выражений, которые используются в различных частях программы
     """
-    received = r'💰 Вы получили|💰 You received'
+    received = r'Вы получили|You received|' \
+               r'Вы успешно получили|You successfully received' \
+               r'⏱ Получение|⏱ Receiving'
     activated = r'Этот мульти-чек уже активирован.|This multi-cheque already activated.'
     check_not_found = r'Мульти-чек не найден.|Multi-cheque not found.'
     activated_or_not_found = r'Этот мульти-чек уже активирован.|This multi-cheque already activated.|' \
-                             r'Мульти-чек не найден.|Multi-cheque not found.'
+                             r'Мульти-чек не найден.|Multi-cheque not found.|' \
+                             r'Этот перевод не найден.|This transfer not found.|' \
+                             r'Вы не можете активировать данный перевод.|You cannot activate this transfer.'
     check_activated = r'Вы уже активировали данный мульти-чек.|You already activated this multi-cheque.'
     need_sub = r'Вам необходимо подписаться на следующие ресурсы чтобы активировать данный чек:|' \
                r'You need to subscribe to following resources to activate this cheque:'
@@ -61,22 +65,26 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
             logger.info(f'Получено сообщение: {message.message}')
             # Если чек полностью активирован или не существует
             if re.search(Pattern.activated_or_not_found, message.message):
+                attemp = 999
                 logger.warning('Чек полностью активирован или не существует')
                 raise exceptions.ChequeFullyActivatedOrNotFound('Чек полностью активирован или не существует')
             # Если чек активирован
-            elif re.search(Pattern.check_activated, message.message):
+            if re.search(Pattern.check_activated, message.message):
+                attemp = 999
                 logger.warning('Вы уже активировали этот чек')
                 raise exceptions.ChequeActivated('Вы уже активировали этот чек')
             # Если чек только для премиумов
-            elif re.search(Pattern.need_premium, message.message):
+            if re.search(Pattern.need_premium, message.message):
+                attemp = 999
                 logger.warning('Этот чек только для пользователей Telegram Premium')
                 raise exceptions.ChequeForPremiumUsersOnly('Этот чек только для пользователей Telegram Premium')
             # Если чек создан вами
-            elif re.search(Pattern.own_cheque_error, message.message):
+            if re.search(Pattern.own_cheque_error, message.message):
+                attemp = 999
                 logger.warning('Вы не можете активировать чек, созданный вами')
                 raise exceptions.CannotActivateOwnCheque('Вы не можете активировать чек, созданный вами')
             # Если нужно подписаться на каналы
-            elif re.search(Pattern.need_sub, message.message):
+            if re.search(Pattern.need_sub, message.message):
                 i = 0
                 for _ in message.reply_markup.rows:
                     for button in message.reply_markup.rows[i].buttons:
@@ -99,7 +107,7 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
                                 await message.click(i)
                     i += 1
             # Если получили капчу
-            elif message.photo:
+            if message.photo:
                 await message.download_media(f"{TEMP_DIR}/original.jpg")
                 btns = []
                 i = 0
@@ -112,7 +120,7 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
                 message = await conv.get_response()
                 logger.info(f"Нажали кнопку '{_emoji}'")
             # Если получили запрос на ввод пароля
-            elif re.search(Pattern.need_pass, message.message):
+            if re.search(Pattern.need_pass, message.message):
                 try:
                     await conv.send_message(password)
                 except ValueError as err:
@@ -120,7 +128,7 @@ async def activate_multicheque(client: TelegramClient, bot_url: dict, password: 
                                                    f' {err.__str__()}')
                 logger.info(f"Ввели пароль {password}")
             # Если получили вознаграждение
-            elif re.search(Pattern.received, message.message):
+            if re.search(Pattern.received, message.message):
                 logger.info(f'Получено сообщение: {message.message}')
                 return True
             attemp += 1
